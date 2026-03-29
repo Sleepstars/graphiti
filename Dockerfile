@@ -38,7 +38,7 @@ COPY ./server/graph_service ./graph_service
 
 # Copy local graphiti-core source to install from instead of PyPI
 COPY ./graphiti_core /graphiti-core/graphiti_core
-COPY ./pyproject.toml /graphiti-core/pyproject.toml
+COPY ./pyproject.toml ./README.md /graphiti-core/
 
 # Install server dependencies, then override graphiti-core with local source
 RUN --mount=type=cache,target=/root/.cache/uv \
