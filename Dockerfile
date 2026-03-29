@@ -2,20 +2,16 @@
 FROM python:3.12-slim
 
 # Inherit build arguments for labels
-ARG GRAPHITI_VERSION
 ARG BUILD_DATE
 ARG VCS_REF
 
 # OCI image annotations
 LABEL org.opencontainers.image.title="Graphiti FastAPI Server"
 LABEL org.opencontainers.image.description="FastAPI server for Graphiti temporal knowledge graphs"
-LABEL org.opencontainers.image.version="${GRAPHITI_VERSION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 LABEL org.opencontainers.image.revision="${VCS_REF}"
-LABEL org.opencontainers.image.vendor="Zep AI"
 LABEL org.opencontainers.image.source="https://github.com/getzep/graphiti"
 LABEL org.opencontainers.image.documentation="https://github.com/getzep/graphiti/tree/main/server"
-LABEL io.graphiti.core.version="${GRAPHITI_VERSION}"
 
 # Install uv using the installer script
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -40,25 +36,14 @@ WORKDIR /app
 COPY ./server/pyproject.toml ./server/README.md ./server/uv.lock ./
 COPY ./server/graph_service ./graph_service
 
-# Install server dependencies (without graphiti-core from lockfile)
-# Then install graphiti-core from PyPI at the desired version
-# This prevents the stale lockfile from pinning an old graphiti-core version
-ARG INSTALL_FALKORDB=false
+# Copy local graphiti-core source to install from instead of PyPI
+COPY ./graphiti_core /graphiti-core/graphiti_core
+COPY ./pyproject.toml /graphiti-core/pyproject.toml
+
+# Install server dependencies, then override graphiti-core with local source
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev && \
-    if [ -n "$GRAPHITI_VERSION" ]; then \
-        if [ "$INSTALL_FALKORDB" = "true" ]; then \
-            uv pip install --upgrade "graphiti-core[falkordb]==$GRAPHITI_VERSION"; \
-        else \
-            uv pip install --upgrade "graphiti-core==$GRAPHITI_VERSION"; \
-        fi; \
-    else \
-        if [ "$INSTALL_FALKORDB" = "true" ]; then \
-            uv pip install --upgrade "graphiti-core[falkordb]"; \
-        else \
-            uv pip install --upgrade graphiti-core; \
-        fi; \
-    fi
+    uv pip install --upgrade /graphiti-core/
 
 # Change ownership to app user
 RUN chown -R app:app /app
