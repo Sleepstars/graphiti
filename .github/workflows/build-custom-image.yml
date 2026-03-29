@@ -2,7 +2,7 @@ name: Build Custom Docker Image
 
 on:
   push:
-    tags: ["v*.*.*"]
+    tags: ["image-v*.*.*"]
   workflow_dispatch:
 
 env:
