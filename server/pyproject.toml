@@ -8,6 +8,7 @@ authors = [
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "falkordb>=1.1.2,<2.0.0",
     "fastapi>=0.115.0",
     "graphiti-core>=0.28.1",
     "pydantic-settings>=2.4.0",
