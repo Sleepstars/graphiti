@@ -10,6 +10,7 @@ from graphiti_core.nodes import EntityNode, EpisodicNode  # type: ignore
 
 from graph_service.config import ZepEnvDep
 from graph_service.dto import FactResult
+from graph_service.llm_compat import CompatOpenAIClient
 
 logger = logging.getLogger(__name__)
 
@@ -111,13 +112,12 @@ def _apply_settings(client: ZepGraphiti, settings: ZepEnvDep) -> None:
         # Use OpenAIGenericClient for non-OpenAI providers (e.g. DashScope/Qwen)
         # as they don't support the responses.parse structured output API.
         from graphiti_core.llm_client.config import LLMConfig
-        from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 
         llm_config = LLMConfig(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
         )
-        client.llm_client = OpenAIGenericClient(config=llm_config)
+        client.llm_client = CompatOpenAIClient(config=llm_config)
         if settings.model_name is not None:
             client.llm_client.model = settings.model_name
 
