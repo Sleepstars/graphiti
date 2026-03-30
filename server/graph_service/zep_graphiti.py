@@ -108,16 +108,33 @@ def _create_graphiti_client(settings: ZepEnvDep) -> ZepGraphiti:
 def _apply_settings(client: ZepGraphiti, settings: ZepEnvDep) -> None:
     """Apply LLM and embedder config from settings to a graphiti client."""
     if settings.openai_base_url is not None:
-        client.llm_client.config.base_url = settings.openai_base_url
+        # Use OpenAIGenericClient for non-OpenAI providers (e.g. DashScope/Qwen)
+        # as they don't support the responses.parse structured output API.
+        from graphiti_core.llm_client.openai_generic_client import (
+            OpenAIGenericClient,
+            OpenAIGenericClientConfig,
+        )
+
+        llm_config = OpenAIGenericClientConfig(
+            api_key=settings.openai_api_key,
+            base_url=settings.openai_base_url,
+        )
+        client.llm_client = OpenAIGenericClient(config=llm_config)
+        if settings.model_name is not None:
+            client.llm_client.model = settings.model_name
+
         client.embedder.config.base_url = settings.openai_base_url
         client.embedder.client = client.embedder.client.__class__(
             api_key=settings.openai_api_key, base_url=settings.openai_base_url
         )
+    else:
+        if settings.openai_api_key is not None:
+            client.llm_client.config.api_key = settings.openai_api_key
+        if settings.model_name is not None:
+            client.llm_client.model = settings.model_name
+
     if settings.openai_api_key is not None:
-        client.llm_client.config.api_key = settings.openai_api_key
         client.embedder.config.api_key = settings.openai_api_key
-    if settings.model_name is not None:
-        client.llm_client.model = settings.model_name
     if settings.embedding_model_name is not None:
         client.embedder.config.embedding_model = settings.embedding_model_name
 
