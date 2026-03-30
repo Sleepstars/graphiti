@@ -12,6 +12,7 @@ from typing import Any
 import openai
 from pydantic import BaseModel
 
+from graphiti_core.cross_encoder.client import CrossEncoderClient
 from graphiti_core.llm_client.config import DEFAULT_MAX_TOKENS, ModelSize
 from graphiti_core.llm_client.errors import RateLimitError
 from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
@@ -71,3 +72,10 @@ class CompatOpenAIClient(OpenAIGenericClient):
         except Exception as e:
             logger.error(f'Error in generating LLM response: {e}')
             raise
+
+
+class NoopCrossEncoder(CrossEncoderClient):
+    """Pass-through cross encoder for providers that don't support logprobs."""
+
+    async def rank(self, query: str, passages: list[str]) -> list[tuple[str, float]]:
+        return [(p, 1.0) for p in passages]

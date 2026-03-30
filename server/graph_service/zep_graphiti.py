@@ -10,7 +10,7 @@ from graphiti_core.nodes import EntityNode, EpisodicNode  # type: ignore
 
 from graph_service.config import ZepEnvDep
 from graph_service.dto import FactResult
-from graph_service.llm_compat import CompatOpenAIClient
+from graph_service.llm_compat import CompatOpenAIClient, NoopCrossEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -136,9 +136,14 @@ def _apply_settings(client: ZepGraphiti, settings: ZepEnvDep) -> None:
     if settings.embedding_model_name is not None:
         client.embedder.config.embedding_model = settings.embedding_model_name
 
+    # Replace cross_encoder for providers that don't support logprobs
+    if settings.openai_base_url is not None:
+        client.cross_encoder = NoopCrossEncoder()
+
     # Sync the internal GraphitiClients bundle which was created during __init__
     client.clients.llm_client = client.llm_client
     client.clients.embedder = client.embedder
+    client.clients.cross_encoder = client.cross_encoder
 
 
 async def get_graphiti(settings: ZepEnvDep):
