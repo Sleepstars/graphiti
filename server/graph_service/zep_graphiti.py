@@ -105,15 +105,26 @@ def _create_graphiti_client(settings: ZepEnvDep) -> ZepGraphiti:
         )
 
 
-async def get_graphiti(settings: ZepEnvDep):
-    client = _create_graphiti_client(settings)
+def _apply_settings(client: ZepGraphiti, settings: ZepEnvDep) -> None:
+    """Apply LLM and embedder config from settings to a graphiti client."""
     if settings.openai_base_url is not None:
         client.llm_client.config.base_url = settings.openai_base_url
+        client.embedder.config.base_url = settings.openai_base_url
+        client.embedder.client = client.embedder.client.__class__(
+            api_key=settings.openai_api_key, base_url=settings.openai_base_url
+        )
     if settings.openai_api_key is not None:
         client.llm_client.config.api_key = settings.openai_api_key
+        client.embedder.config.api_key = settings.openai_api_key
     if settings.model_name is not None:
         client.llm_client.model = settings.model_name
+    if settings.embedding_model_name is not None:
+        client.embedder.config.embedding_model = settings.embedding_model_name
 
+
+async def get_graphiti(settings: ZepEnvDep):
+    client = _create_graphiti_client(settings)
+    _apply_settings(client, settings)
     try:
         yield client
     finally:
@@ -122,6 +133,7 @@ async def get_graphiti(settings: ZepEnvDep):
 
 async def initialize_graphiti(settings: ZepEnvDep):
     client = _create_graphiti_client(settings)
+    _apply_settings(client, settings)
     try:
         await client.build_indices_and_constraints()
     finally:
