@@ -136,6 +136,10 @@ def _apply_settings(client: ZepGraphiti, settings: ZepEnvDep) -> None:
     if settings.embedding_model_name is not None:
         client.embedder.config.embedding_model = settings.embedding_model_name
 
+    # Sync the internal GraphitiClients bundle which was created during __init__
+    client.clients.llm_client = client.llm_client
+    client.clients.embedder = client.embedder
+
 
 async def get_graphiti(settings: ZepEnvDep):
     client = _create_graphiti_client(settings)
