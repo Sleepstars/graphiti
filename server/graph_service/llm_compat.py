@@ -40,6 +40,22 @@ class CompatOpenAIClient(OpenAIGenericClient):
             elif m.role == 'system':
                 openai_messages.append({'role': 'system', 'content': m.content})
 
+        # DashScope requires "json" in the prompt to use json_object format.
+        # Also inject schema hint so the model returns correctly named fields.
+        schema_hint = ''
+        if response_model is not None:
+            schema = response_model.model_json_schema()
+            schema_hint = (
+                f'\n\nYou MUST respond with valid JSON matching this exact schema: {schema}'
+            )
+        json_instruction = (
+            f'\nIMPORTANT: Respond ONLY with valid JSON.{schema_hint}'
+        )
+        if openai_messages and openai_messages[0]['role'] == 'system':
+            openai_messages[0]['content'] += json_instruction  # type: ignore
+        else:
+            openai_messages.insert(0, {'role': 'system', 'content': json_instruction})
+
         try:
             response = await self.client.chat.completions.create(
                 model=self.model or 'gpt-4.1-mini',
