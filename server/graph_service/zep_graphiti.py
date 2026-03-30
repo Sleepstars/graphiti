@@ -110,12 +110,10 @@ def _apply_settings(client: ZepGraphiti, settings: ZepEnvDep) -> None:
     if settings.openai_base_url is not None:
         # Use OpenAIGenericClient for non-OpenAI providers (e.g. DashScope/Qwen)
         # as they don't support the responses.parse structured output API.
-        from graphiti_core.llm_client.openai_generic_client import (
-            OpenAIGenericClient,
-            OpenAIGenericClientConfig,
-        )
+        from graphiti_core.llm_client.config import LLMConfig
+        from graphiti_core.llm_client.openai_generic_client import OpenAIGenericClient
 
-        llm_config = OpenAIGenericClientConfig(
+        llm_config = LLMConfig(
             api_key=settings.openai_api_key,
             base_url=settings.openai_base_url,
         )
