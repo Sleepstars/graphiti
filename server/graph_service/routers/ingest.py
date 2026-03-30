@@ -1,8 +1,11 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from functools import partial
 
 from fastapi import APIRouter, FastAPI, status
+
+logger = logging.getLogger(__name__)
 from graphiti_core.nodes import EpisodeType  # type: ignore
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data  # type: ignore
 
@@ -23,6 +26,8 @@ class AsyncWorker:
                 await job()
             except asyncio.CancelledError:
                 break
+            except Exception as e:
+                logger.exception(f'Ingest worker job failed: {e}')
 
     async def start(self):
         self.task = asyncio.create_task(self.worker())
