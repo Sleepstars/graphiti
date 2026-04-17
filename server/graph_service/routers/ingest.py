@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import timezone
 from functools import partial
 
 from fastapi import APIRouter, FastAPI, status
@@ -9,7 +10,14 @@ logger = logging.getLogger(__name__)
 from graphiti_core.nodes import EpisodeType  # type: ignore
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data  # type: ignore
 
-from graph_service.dto import AddEntityNodeRequest, AddMessagesRequest, Message, Result
+from graph_service.dto import (
+    AddEntityNodeRequest,
+    AddEpisodeRequest,
+    AddEpisodeResponse,
+    AddMessagesRequest,
+    Message,
+    Result,
+)
 from graph_service.zep_graphiti import ZepGraphitiDep
 
 
@@ -89,6 +97,28 @@ async def add_entity_node(
     return node
 
 
+@router.post('/episodes', status_code=status.HTTP_201_CREATED)
+async def add_episode(
+    request: AddEpisodeRequest,
+    graphiti: ZepGraphitiDep,
+):
+    reference_time = (
+        request.reference_time.replace(tzinfo=timezone.utc)
+        if request.reference_time.tzinfo is None
+        else request.reference_time.astimezone(timezone.utc)
+    )
+    result = await graphiti.add_episode(
+        uuid=request.uuid,
+        group_id=request.group_id,
+        name=request.name,
+        episode_body=request.episode_body,
+        reference_time=reference_time,
+        source=EpisodeType.message,
+        source_description=request.source_description,
+    )
+    return AddEpisodeResponse(uuid=result.episode.uuid)
+
+
 @router.delete('/entity-edge/{uuid}', status_code=status.HTTP_200_OK)
 async def delete_entity_edge(uuid: str, graphiti: ZepGraphitiDep):
     await graphiti.delete_entity_edge(uuid)
@@ -103,6 +133,12 @@ async def delete_group(group_id: str, graphiti: ZepGraphitiDep):
 
 @router.delete('/episode/{uuid}', status_code=status.HTTP_200_OK)
 async def delete_episode(uuid: str, graphiti: ZepGraphitiDep):
+    await graphiti.delete_episodic_node(uuid)
+    return Result(message='Episode deleted', success=True)
+
+
+@router.delete('/episodes/{uuid}', status_code=status.HTTP_200_OK)
+async def delete_episode_plural(uuid: str, graphiti: ZepGraphitiDep):
     await graphiti.delete_episodic_node(uuid)
     return Result(message='Episode deleted', success=True)
 
