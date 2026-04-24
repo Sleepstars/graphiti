@@ -1,13 +1,15 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import timezone
+from datetime import datetime, timezone
 from functools import partial
 
 from fastapi import APIRouter, FastAPI, status
 
 logger = logging.getLogger(__name__)
-from graphiti_core.nodes import EpisodeType  # type: ignore
+from graphiti_core.errors import NodeNotFoundError  # type: ignore
+from graphiti_core.nodes import EpisodeType, EpisodicNode  # type: ignore
+from graphiti_core.utils.datetime_utils import utc_now  # type: ignore
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data  # type: ignore
 
 from graph_service.dto import (
@@ -18,7 +20,7 @@ from graph_service.dto import (
     Message,
     Result,
 )
-from graph_service.zep_graphiti import ZepGraphitiDep
+from graph_service.zep_graphiti import ZepGraphiti, ZepGraphitiDep
 
 
 class AsyncWorker:
@@ -61,17 +63,76 @@ async def lifespan(_: FastAPI):
 router = APIRouter(lifespan=lifespan)
 
 
+async def _ensure_episodic_node(
+    graphiti: ZepGraphiti,
+    *,
+    uuid: str | None,
+    group_id: str,
+    name: str,
+    episode_body: str,
+    source: EpisodeType,
+    source_description: str,
+    reference_time: datetime,
+) -> None:
+    """Pre-create an ``EpisodicNode`` when the caller supplied its own uuid.
+
+    ``graphiti_core>=0.5`` reinterprets the ``uuid=`` kwarg on ``add_episode``
+    as a lookup key (``EpisodicNode.get_by_uuid``) instead of an override for
+    the newly-created node's uuid. Callers that want to control the episode's
+    uuid (e.g. to correlate with their own store for later ``DELETE
+    /episode/{uuid}`` calls) must therefore persist the node first; the
+    downstream ``_process_episode_data`` upsert will then update it in place.
+
+    When ``uuid`` is ``None`` this is a no-op — ``add_episode`` will generate
+    and persist a fresh uuid itself.
+    """
+    if uuid is None:
+        return
+
+    try:
+        await EpisodicNode.get_by_uuid(graphiti.driver, uuid)
+        # Already persisted (likely a retry); graphiti.add_episode will fetch it.
+        return
+    except NodeNotFoundError:
+        pass
+
+    now = utc_now()
+    episode = EpisodicNode(
+        uuid=uuid,
+        name=name,
+        group_id=group_id,
+        labels=[],
+        source=source,
+        content=episode_body,
+        source_description=source_description,
+        created_at=now,
+        valid_at=reference_time,
+    )
+    await episode.save(graphiti.driver)
+
+
 @router.post('/messages', status_code=status.HTTP_202_ACCEPTED)
 async def add_messages(
     request: AddMessagesRequest,
     graphiti: ZepGraphitiDep,
 ):
     async def add_messages_task(m: Message):
+        episode_body = f'{m.role or ""}({m.role_type}): {m.content}'
+        await _ensure_episodic_node(
+            graphiti,
+            uuid=m.uuid,
+            group_id=request.group_id,
+            name=m.name,
+            episode_body=episode_body,
+            source=EpisodeType.message,
+            source_description=m.source_description,
+            reference_time=m.timestamp,
+        )
         await graphiti.add_episode(
             uuid=m.uuid,
             group_id=request.group_id,
             name=m.name,
-            episode_body=f'{m.role or ""}({m.role_type}): {m.content}',
+            episode_body=episode_body,
             reference_time=m.timestamp,
             source=EpisodeType.message,
             source_description=m.source_description,
@@ -106,6 +167,16 @@ async def add_episode(
         request.reference_time.replace(tzinfo=timezone.utc)
         if request.reference_time.tzinfo is None
         else request.reference_time.astimezone(timezone.utc)
+    )
+    await _ensure_episodic_node(
+        graphiti,
+        uuid=request.uuid,
+        group_id=request.group_id,
+        name=request.name,
+        episode_body=request.episode_body,
+        source=EpisodeType.message,
+        source_description=request.source_description,
+        reference_time=reference_time,
     )
     result = await graphiti.add_episode(
         uuid=request.uuid,
