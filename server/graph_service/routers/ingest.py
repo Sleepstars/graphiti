@@ -83,14 +83,24 @@ async def _ensure_episodic_node(
     /episode/{uuid}`` calls) must therefore persist the node first; the
     downstream ``_process_episode_data`` upsert will then update it in place.
 
+    For drivers that partition the graph by ``group_id`` (FalkorDB stores each
+    group in its own graph DB), we must target the same partition
+    ``add_episode`` will later clone to, otherwise our save lands in the
+    default DB and add_episode's get_by_uuid misses it. Mirror the same
+    clone-on-mismatch pattern used in ``Graphiti.add_episode``.
+
     When ``uuid`` is ``None`` this is a no-op — ``add_episode`` will generate
     and persist a fresh uuid itself.
     """
     if uuid is None:
         return
 
+    driver = graphiti.driver
+    if group_id and group_id != getattr(driver, '_database', group_id):
+        driver = driver.clone(database=group_id)
+
     try:
-        await EpisodicNode.get_by_uuid(graphiti.driver, uuid)
+        await EpisodicNode.get_by_uuid(driver, uuid)
         # Already persisted (likely a retry); graphiti.add_episode will fetch it.
         return
     except NodeNotFoundError:
@@ -108,7 +118,7 @@ async def _ensure_episodic_node(
         created_at=now,
         valid_at=reference_time,
     )
-    await episode.save(graphiti.driver)
+    await episode.save(driver)
 
 
 @router.post('/messages', status_code=status.HTTP_202_ACCEPTED)
