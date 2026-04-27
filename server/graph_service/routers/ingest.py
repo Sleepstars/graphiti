@@ -201,8 +201,8 @@ async def add_episode(
 
 
 @router.delete('/entity-edge/{uuid}', status_code=status.HTTP_200_OK)
-async def delete_entity_edge(uuid: str, graphiti: ZepGraphitiDep):
-    await graphiti.delete_entity_edge(uuid)
+async def delete_entity_edge(uuid: str, graphiti: ZepGraphitiDep, group_id: str | None = None):
+    await graphiti.delete_entity_edge(uuid, group_id=group_id)
     return Result(message='Entity Edge deleted', success=True)
 
 
@@ -213,14 +213,14 @@ async def delete_group(group_id: str, graphiti: ZepGraphitiDep):
 
 
 @router.delete('/episode/{uuid}', status_code=status.HTTP_200_OK)
-async def delete_episode(uuid: str, graphiti: ZepGraphitiDep):
-    await graphiti.delete_episodic_node(uuid)
+async def delete_episode(uuid: str, graphiti: ZepGraphitiDep, group_id: str | None = None):
+    await graphiti.delete_episodic_node(uuid, group_id=group_id)
     return Result(message='Episode deleted', success=True)
 
 
 @router.delete('/episodes/{uuid}', status_code=status.HTTP_200_OK)
-async def delete_episode_plural(uuid: str, graphiti: ZepGraphitiDep):
-    await graphiti.delete_episodic_node(uuid)
+async def delete_episode_plural(uuid: str, graphiti: ZepGraphitiDep, group_id: str | None = None):
+    await graphiti.delete_episodic_node(uuid, group_id=group_id)
     return Result(message='Episode deleted', success=True)
 
 

@@ -15,6 +15,12 @@ from graph_service.llm_compat import CompatOpenAIClient, NoopCrossEncoder
 logger = logging.getLogger(__name__)
 
 
+def _driver_for_group(driver, group_id: str | None):
+    if group_id and group_id != getattr(driver, '_database', group_id):
+        return driver.clone(database=group_id)
+    return driver
+
+
 class ZepGraphiti(Graphiti):
     def __init__(
         self,
@@ -37,9 +43,10 @@ class ZepGraphiti(Graphiti):
         await new_node.save(self.driver)
         return new_node
 
-    async def get_entity_edge(self, uuid: str):
+    async def get_entity_edge(self, uuid: str, group_id: str | None = None):
+        driver = _driver_for_group(self.driver, group_id)
         try:
-            edge = await EntityEdge.get_by_uuid(self.driver, uuid)
+            edge = await EntityEdge.get_by_uuid(driver, uuid)
             return edge
         except EdgeNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -64,17 +71,19 @@ class ZepGraphiti(Graphiti):
         for episode in episodes:
             await episode.delete(self.driver)
 
-    async def delete_entity_edge(self, uuid: str):
+    async def delete_entity_edge(self, uuid: str, group_id: str | None = None):
+        driver = _driver_for_group(self.driver, group_id)
         try:
-            edge = await EntityEdge.get_by_uuid(self.driver, uuid)
-            await edge.delete(self.driver)
+            edge = await EntityEdge.get_by_uuid(driver, uuid)
+            await edge.delete(driver)
         except EdgeNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
 
-    async def delete_episodic_node(self, uuid: str):
+    async def delete_episodic_node(self, uuid: str, group_id: str | None = None):
+        driver = _driver_for_group(self.driver, group_id)
         try:
-            episode = await EpisodicNode.get_by_uuid(self.driver, uuid)
-            await episode.delete(self.driver)
+            episode = await EpisodicNode.get_by_uuid(driver, uuid)
+            await episode.delete(driver)
         except NodeNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
 
