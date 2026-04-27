@@ -173,6 +173,7 @@ def get_fact_result_from_edge(edge: EntityEdge):
         invalid_at=edge.invalid_at,
         created_at=edge.created_at,
         expired_at=edge.expired_at,
+        episodes=getattr(edge, 'episodes', None),
     )
 
 

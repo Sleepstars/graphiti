@@ -21,6 +21,7 @@ class FactResult(BaseModel):
     invalid_at: datetime | None
     created_at: datetime
     expired_at: datetime | None
+    episodes: list[str] | None = None
 
     class Config:
         json_encoders = {datetime: lambda v: v.astimezone(timezone.utc).isoformat()}
