@@ -18,7 +18,7 @@ import logging
 from datetime import datetime
 from time import time
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from typing_extensions import LiteralString
 
 from graphiti_core.driver.driver import GraphDriver, GraphProvider
@@ -559,7 +559,15 @@ async def resolve_extracted_edge(
         model_size=ModelSize.small,
         prompt_name='dedupe_edges.resolve_edge',
     )
-    response_object = EdgeDuplicate(**llm_response)
+    try:
+        response_object = EdgeDuplicate(**llm_response)
+    except (TypeError, ValidationError) as exc:
+        logger.warning(
+            'LLM returned malformed edge dedupe response %r; treating as no duplicates: %s',
+            llm_response,
+            exc,
+        )
+        response_object = EdgeDuplicate(duplicate_facts=[], contradicted_facts=[])
     duplicate_facts = response_object.duplicate_facts
 
     # Validate duplicate_facts are in valid range for EXISTING FACTS
