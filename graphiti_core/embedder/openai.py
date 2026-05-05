@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import os
 from collections.abc import Iterable
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI
@@ -23,11 +24,18 @@ from .client import EmbedderClient, EmbedderConfig
 
 DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small'
 
+# DashScope's text-embedding-v3 caps batch size at 10. OpenAI accepts up to
+# 2048. Default to 10 so DashScope-compatible deployments work out of the box;
+# operators on first-party OpenAI can raise this via env to amortize round
+# trips.
+DEFAULT_OPENAI_BATCH_SIZE = int(os.environ.get('OPENAI_EMBEDDER_BATCH_SIZE', '10'))
+
 
 class OpenAIEmbedderConfig(EmbedderConfig):
     embedding_model: EmbeddingModel | str = DEFAULT_EMBEDDING_MODEL
     api_key: str | None = None
     base_url: str | None = None
+    batch_size: int = DEFAULT_OPENAI_BATCH_SIZE
 
 
 class OpenAIEmbedder(EmbedderClient):
@@ -60,7 +68,17 @@ class OpenAIEmbedder(EmbedderClient):
         return result.data[0].embedding[: self.config.embedding_dim]
 
     async def create_batch(self, input_data_list: list[str]) -> list[list[float]]:
-        result = await self.client.embeddings.create(
-            input=input_data_list, model=self.config.embedding_model
-        )
-        return [embedding.embedding[: self.config.embedding_dim] for embedding in result.data]
+        if not input_data_list:
+            return []
+
+        batch_size = max(1, self.config.batch_size)
+        embeddings: list[list[float]] = []
+        for i in range(0, len(input_data_list), batch_size):
+            chunk = input_data_list[i : i + batch_size]
+            result = await self.client.embeddings.create(
+                input=chunk, model=self.config.embedding_model
+            )
+            embeddings.extend(
+                embedding.embedding[: self.config.embedding_dim] for embedding in result.data
+            )
+        return embeddings
