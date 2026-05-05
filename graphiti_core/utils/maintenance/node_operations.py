@@ -19,7 +19,7 @@ from collections.abc import Awaitable, Callable
 from time import time
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from graphiti_core.edges import EntityEdge
 from graphiti_core.graphiti_types import GraphitiClients
@@ -327,7 +327,17 @@ async def _resolve_with_llm(
         prompt_name='dedupe_nodes.nodes',
     )
 
-    node_resolutions: list[NodeDuplicate] = NodeResolutions(**llm_response).entity_resolutions
+    try:
+        node_resolutions: list[NodeDuplicate] = NodeResolutions(
+            **llm_response
+        ).entity_resolutions
+    except (TypeError, ValidationError) as exc:
+        logger.warning(
+            'LLM returned malformed dedupe response %r; treating as no resolutions: %s',
+            llm_response,
+            exc,
+        )
+        node_resolutions = []
 
     valid_relative_range = range(len(state.unresolved_indices))
     processed_relative_ids: set[int] = set()
